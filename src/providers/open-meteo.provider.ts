@@ -419,31 +419,38 @@ export class OpenMeteoProvider
         let response: Response;
 
         try {
-          response = await fetch(url, {
+                    response = await fetch(url, {
             method: 'GET',
             headers: {
-              Accept: 'application/json',
+                Accept: 'application/json',
+                'User-Agent': 'MAUSAM-Backend/1.0',
             },
             signal: controller.signal,
-          });
+            });
         } finally {
           clearTimeout(timeout);
         }
 
         if (!response.ok) {
-          if (
-            response.status >= 500 &&
-            attempt < this.maxAttempts
-          ) {
-            continue;
-          }
+  const errorBody = await response.text();
 
-          throw new WeatherProviderError(
-            'WEATHER_PROVIDER_UNAVAILABLE',
-            'Weather provider is temporarily unavailable.',
-            502,
-          );
-        }
+  console.error(
+    `[Open-Meteo] HTTP ${response.status}: ${errorBody.slice(0, 500)}`,
+  );
+
+  if (
+    response.status >= 500 &&
+    attempt < this.maxAttempts
+  ) {
+    continue;
+  }
+
+  throw new WeatherProviderError(
+    'WEATHER_PROVIDER_UNAVAILABLE',
+    `Weather provider returned HTTP ${response.status}.`,
+    502,
+  );
+}
 
         let json: unknown;
 
@@ -483,9 +490,14 @@ export class OpenMeteoProvider
           error instanceof Error &&
           error.name === 'AbortError'
         ) {
-          if (attempt < this.maxAttempts) {
-            continue;
-          }
+          console.error(
+  `[Open-Meteo] Request failed on attempt ${attempt}:`,
+  error instanceof Error ? error.message : error,
+);
+
+if (attempt < this.maxAttempts) {
+  continue;
+}
 
           throw new WeatherProviderError(
             'WEATHER_PROVIDER_TIMEOUT',
